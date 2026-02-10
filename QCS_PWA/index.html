@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2563eb">
+    <title>公共工程品質檢查表 PWA</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 工程現場專用樣式 */
+        body { font-family: "Microsoft JhengHei", sans-serif; background-color: #f3f4f6; padding-bottom: 80px; }
+        .paper-card { background: white; padding: 16px; margin-bottom: 16px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .input-std { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #fafafa; }
+        .input-std:focus { border-color: #2563eb; outline: none; background: #fff; }
+        
+        /* 按鈕狀態樣式 */
+        .btn-base { padding: 8px 0; border: 1px solid #e5e7eb; border-radius: 6px; font-weight: bold; color: #9ca3af; background: white; transition: all 0.2s; }
+        .btn-pass-active { border-color: #10b981; background-color: #10b981; color: white; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3); }
+        .btn-fail-active { border-color: #ef4444; background-color: #ef4444; color: white; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3); }
+        
+        /* 左側狀態條 */
+        .border-l-pass { border-left: 5px solid #10b981; }
+        .border-l-fail { border-left: 5px solid #ef4444; }
+    </style>
+</head>
+<body class="p-4">
+
+    <header class="mb-5 flex justify-between items-center">
+        <div>
+            <h1 class="text-xl font-bold text-gray-800">工程品質自主檢查</h1>
+            <p class="text-xs text-gray-500">系統 V1.0 (PWA Ready)</p>
+        </div>
+        <div id="connectionStatus" class="bg-blue-600 text-white text-xs px-2 py-1 rounded">連線正常</div>
+    </header>
+
+    <div class="paper-card">
+        <h2 class="text-lg font-bold mb-4 text-gray-800 border-b pb-2">基本資料</h2>
+        <div class="grid grid-cols-1 gap-3">
+            <div>
+                <label class="text-xs text-gray-500 mb-1 block">工程名稱</label>
+                <input type="text" class="input-std" value="大林廠-第一重油工場改善案">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-gray-500 mb-1 block">檢查日期</label>
+                    <input type="date" id="dateInput" class="input-std">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 mb-1 block">檢查人員</label>
+                    <input type="text" class="input-std" value="林婉馨">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="checkFormArea"></div>
+
+    <div id="defectSection" class="hidden">
+        <div class="paper-card border border-red-200 bg-red-50">
+            <h2 class="text-lg font-bold text-red-600 mb-2 flex items-center">
+                ⚠ 缺失改善追蹤表
+            </h2>
+            <p class="text-sm text-gray-600 mb-4">系統偵測到以下項目不合格，請填寫改善措施：</p>
+            <div id="defectList" class="space-y-4">
+                </div>
+        </div>
+    </div>
+
+    <div class="fixed bottom-0 left-0 w-full bg-white border-t p-3 shadow-lg z-50">
+        <button onclick="saveData()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow active:scale-95 transition-transform">
+            提交檢查紀錄 (模擬儲存)
+        </button>
+    </div>
+
+<script>
+    // ==========================================
+    // 修改 2：PWA 啟動程式碼 (Service Worker)
+    // ==========================================
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then((reg) => console.log('PWA Service Worker 註冊成功:', reg.scope))
+                .catch((err) => console.log('Service Worker 註冊失敗:', err));
+        });
+    }
+
+    // 監聽網路狀態 (離線/連線)
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+
+    function updateStatus() {
+        const statusDiv = document.getElementById('connectionStatus');
+        if (navigator.onLine) {
+            statusDiv.textContent = "連線正常";
+            statusDiv.className = "bg-blue-600 text-white text-xs px-2 py-1 rounded";
+        } else {
+            statusDiv.textContent = "離線模式";
+            statusDiv.className = "bg-gray-600 text-white text-xs px-2 py-1 rounded";
+        }
+    }
+
+    // ==========================================
+    // 下方為原有的檢查表核心邏輯
+    // ==========================================
+    
+    // 設定檢查項目
+    const formConfig = [
+        { id: "c01", name: "設計圖說、規範之檢查標準", standard: "符合最新核定版圖說", type: "text" },
+        { id: "c02", name: "鋼筋號數及根數", standard: "與設計圖相符 (定量)", type: "number" },
+        { id: "c03", name: "鋼筋間距", standard: "設計值 ±10mm", type: "number" },
+        { id: "c04", name: "保護層厚度", standard: "依規範 (例: 7.5cm)", type: "number" },
+        { id: "c05", name: "工地清潔", standard: "無雜物堆積", type: "bool" }
+    ];
+
+    // 初始化
+    document.getElementById('dateInput').valueAsDate = new Date();
+    const defectItems = new Map(); // 使用 Map 來管理缺失項目
+    renderForm();
+
+    // 繪製表單
+    function renderForm() {
+        const container = document.getElementById('checkFormArea');
+        let html = '';
+
+        formConfig.forEach((item, index) => {
+            html += `
+            <div class="paper-card transition-all duration-300" id="card-${item.id}">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="font-bold text-gray-800 text-lg">${index + 1}. ${item.name}</h3>
+                </div>
+                
+                <div class="bg-gray-100 p-2 rounded text-sm text-gray-600 mb-3 border-l-4 border-gray-400">
+                    <span class="font-bold">標準：</span>${item.standard}
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 block mb-1">實際檢查值</label>
+                        <input type="text" class="input-std" placeholder="輸入數值或情形...">
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="setResult('${item.id}', 'pass', '${item.name}')" 
+                            id="btn-pass-${item.id}" class="btn-base flex-1">
+                            合格
+                        </button>
+                        <button onclick="setResult('${item.id}', 'fail', '${item.name}')" 
+                            id="btn-fail-${item.id}" class="btn-base flex-1">
+                            缺失
+                        </button>
+                        <button class="btn-base w-12 text-gray-400">N/A</button>
+                    </div>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    // 處理判定 (合格/缺失)
+    function setResult(id, result, name) {
+        const card = document.getElementById(`card-${id}`);
+        const btnPass = document.getElementById(`btn-pass-${id}`);
+        const btnFail = document.getElementById(`btn-fail-${id}`);
+
+        // 重置按鈕樣式
+        btnPass.className = "btn-base flex-1";
+        btnFail.className = "btn-base flex-1";
+        card.classList.remove('border-l-pass', 'border-l-fail');
+
+        if (result === 'pass') {
+            btnPass.classList.add('btn-pass-active');
+            card.classList.add('border-l-pass');
+            
+            // 如果原本有缺失，現在改合格，要從清單移除
+            if (defectItems.has(id)) {
+                defectItems.delete(id);
+                updateDefectSection();
+            }
+        } else {
+            btnFail.classList.add('btn-fail-active');
+            card.classList.add('border-l-fail');
+            
+            // 加入缺失清單
+            defectItems.set(id, name);
+            updateDefectSection();
+        }
+    }
+
+    // 更新下方缺失表
+    function updateDefectSection() {
+        const section = document.getElementById('defectSection');
+        const list = document.getElementById('defectList');
+        
+        if (defectItems.size === 0) {
+            section.classList.add('hidden');
+            return;
+        }
+
+        section.classList.remove('hidden');
+        let html = '';
+
+        defectItems.forEach((name, id) => {
+            html += `
+            <div class="bg-white p-3 rounded border border-red-100 shadow-sm animate-pulse-once">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold text-red-700 text-sm">針對：${name}</span>
+                    <span class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full">未改善</span>
+                </div>
+                <textarea class="w-full p-2 border rounded text-sm mb-2" rows="2" placeholder="請描述缺失細節及改善對策..."></textarea>
+                <button class="w-full bg-gray-700 text-white text-sm py-2 rounded flex justify-center items-center gap-2 hover:bg-gray-800">
+                    📷 拍攝缺失照片
+                </button>
+            </div>`;
+        });
+        list.innerHTML = html;
+        
+        // 只有在第一次出現時自動捲動
+        if(defectItems.size === 1) {
+            section.scrollIntoView({behavior: "smooth", block: "start"});
+        }
+    }
+
+    function saveData() {
+        // 模擬儲存動作
+        const statusDiv = document.getElementById('connectionStatus');
+        if(navigator.onLine){
+            alert(`[連線正常] 資料已上傳雲端資料庫！\n共發現 ${defectItems.size} 項缺失。`);
+        } else {
+            alert(`[離線模式] 資料已暫存手機，待連線後自動上傳！\n共發現 ${defectItems.size} 項缺失。`);
+        }
+    }
+</script>
+
+</body>
+</html>
