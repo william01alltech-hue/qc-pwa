@@ -4,242 +4,309 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#2563eb">
-    <title>公共工程品質檢查表 PWA</title>
+    <title>工程檢查 PWA (含後台)</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon.png">
-
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; background-color: #f3f4f6; padding-bottom: 120px; }
+        body { font-family: "Microsoft JhengHei", sans-serif; background-color: #f3f4f6; padding-bottom: 80px; }
         .paper-card { background: white; padding: 16px; margin-bottom: 16px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .input-std { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #fafafa; }
         
-        /* 按鈕樣式 */
-        .btn-base { padding: 10px 0; border: 1px solid #e5e7eb; border-radius: 6px; font-weight: bold; color: #6b7280; background: white; transition: all 0.2s; }
-        .btn-pass-active { border-color: #10b981; background-color: #10b981; color: white; }
-        .btn-fail-active { border-color: #ef4444; background-color: #ef4444; color: white; }
-        
-        /* 左側狀態條 */
-        .border-l-pass { border-left: 5px solid #10b981; }
-        .border-l-fail { border-left: 5px solid #ef4444; }
+        /* 頁面切換控制 */
+        .page-section { display: none; }
+        .page-section.active { display: block; }
 
-        /* 相機預覽圖樣式 */
-        .photo-preview { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; border: 2px dashed #ccc; display: none; margin-top: 8px; }
+        /* 底部導航列 */
+        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: white; border-top: 1px solid #ddd; display: flex; justify-content: space-around; padding: 10px 0; z-index: 100; }
+        .nav-item { text-align: center; color: #9ca3af; font-size: 12px; cursor: pointer; }
+        .nav-item.active { color: #2563eb; font-weight: bold; }
+        .nav-icon { font-size: 24px; display: block; margin-bottom: 2px; }
+
+        /* 相機與按鈕樣式 */
+        .btn-base { padding: 10px 0; border: 1px solid #e5e7eb; border-radius: 6px; font-weight: bold; color: #6b7280; background: white; }
+        .btn-pass-active { background-color: #10b981; color: white; border-color: #10b981; }
+        .btn-fail-active { background-color: #ef4444; color: white; border-color: #ef4444; }
+        .photo-preview { width: 100%; height: 180px; object-fit: cover; border-radius: 8px; border: 2px dashed #ccc; display: none; margin-top: 8px; }
         .photo-preview.show { display: block; border: 2px solid #2563eb; }
-        
-        /* 拍照按鈕 */
-        .btn-camera { background-color: #f3f4f6; color: #374151; border: 1px dashed #9ca3af; }
-        .btn-camera:active { background-color: #e5e7eb; }
     </style>
 </head>
 <body class="p-4">
 
-    <header class="mb-5 flex justify-between items-center">
-        <div>
+    <div id="page-check" class="page-section active">
+        <header class="mb-4 flex justify-between items-center">
             <h1 class="text-xl font-bold text-gray-800">工程品質自主檢查</h1>
-            <p class="text-xs text-gray-500">V1.3 (全項目拍照版)</p>
-        </div>
-        <div id="connectionStatus" class="bg-blue-600 text-white text-xs px-2 py-1 rounded">連線正常</div>
-    </header>
+            <div class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">現場模式</div>
+        </header>
 
-    <div class="paper-card">
-        <h2 class="text-lg font-bold mb-4 text-gray-800 border-b pb-2">基本資料</h2>
-        <div class="grid grid-cols-1 gap-3">
-            <div>
-                <label class="text-xs text-gray-500 block mb-1">工程名稱</label>
-                <input type="text" class="input-std" value="大林廠-第一重油工場改善案">
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="text-xs text-gray-500 block mb-1">檢查日期</label>
-                    <input type="date" id="dateInput" class="input-std">
-                </div>
-                <div>
-                    <label class="text-xs text-gray-500 block mb-1">檢查人員</label>
-                    <input type="text" class="input-std" value="林婉馨">
-                </div>
+        <div class="paper-card border-l-4 border-blue-500">
+            <label class="block text-gray-500 text-xs mb-1">請選擇檢查表：</label>
+            <select id="userFormSelector" onchange="loadUserForm()" class="w-full p-2 border rounded bg-white font-bold text-lg mb-3"></select>
+            
+            <div class="grid grid-cols-2 gap-3 pt-2 border-t">
+                <div><label class="text-xs text-gray-500">日期</label><input type="date" id="checkDate" class="input-std"></div>
+                <div><label class="text-xs text-gray-500">人員</label><input type="text" class="input-std" value="林婉馨"></div>
             </div>
         </div>
+
+        <div id="checklistArea"></div>
+        
+        <button onclick="submitData()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow mt-4 mb-20">提交檢查紀錄</button>
     </div>
 
-    <div id="checkFormArea"></div>
+    <div id="page-admin" class="page-section">
+        <header class="mb-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">管理員後台設定</h1>
+            <div class="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded">設定模式</div>
+        </header>
 
-    <div id="defectSection" class="hidden">
-        <div class="paper-card border border-red-200 bg-red-50">
-            <h2 class="text-lg font-bold text-red-600 mb-2 flex items-center">
-                ⚠ 缺失改善追蹤
-            </h2>
-            <p class="text-sm text-gray-600 mb-4">針對不合格項目，請填寫改善對策 (照片請在上方拍攝)：</p>
-            <div id="defectList" class="space-y-4">
+        <div class="paper-card bg-gray-50">
+            <h3 class="font-bold text-gray-700 mb-2">1. 選擇或新增檢查表</h3>
+            <div class="flex gap-2">
+                <select id="adminFormSelector" onchange="loadAdminItems()" class="flex-1 p-2 border rounded"></select>
+                <button onclick="addNewFormType()" class="bg-green-600 text-white px-3 rounded shadow font-bold">+</button>
+                <button onclick="deleteFormType()" class="bg-red-600 text-white px-3 rounded shadow font-bold">🗑️</button>
+            </div>
+        </div>
+
+        <div class="paper-card">
+            <h3 class="font-bold text-gray-700 mb-2 flex justify-between">
+                2. 編輯檢查項目
+                <button onclick="addNewItem()" class="text-xs bg-blue-600 text-white px-2 py-1 rounded">+ 新增項目</button>
+            </h3>
+            <div id="adminItemsList" class="space-y-3">
                 </div>
         </div>
-    </div>
 
-    <div class="fixed bottom-0 left-0 w-full bg-white border-t p-3 shadow-lg z-50">
-        <button onclick="saveData()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow active:bg-blue-700">
-            提交檢查紀錄
+        <button onclick="saveAllConfig()" class="w-full bg-gray-800 text-white font-bold py-3 rounded-lg shadow mt-4 mb-20">
+            💾 儲存所有設定 (Save)
         </button>
     </div>
 
-<script>
-    // 1. PWA Service Worker 註冊
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js');
-        });
-    }
+    <nav class="nav-bar">
+        <div class="nav-item active" onclick="switchPage('check', this)">
+            <span class="nav-icon">📋</span>
+            現場檢查
+        </div>
+        <div class="nav-item" onclick="switchPage('admin', this)">
+            <span class="nav-icon">⚙️</span>
+            後台設定
+        </div>
+    </nav>
 
-    // 2. 檢查表設定
-    const formConfig = [
-        { id: "c01", name: "設計圖說、規範標準", standard: "符合最新核定版圖說", type: "text" },
-        { id: "c02", name: "鋼筋號數及根數", standard: "與設計圖相符 (定量)", type: "number" },
-        { id: "c03", name: "鋼筋間距", standard: "設計值 ±10mm", type: "number" },
-        { id: "c04", name: "保護層厚度", standard: "依規範 (例: 7.5cm)", type: "number" },
-        { id: "c05", name: "工地清潔", standard: "無雜物堆積", type: "bool" }
-    ];
+<script>
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+
+    // ==========================================
+    // 資料核心 (預設資料)
+    // ==========================================
+    const defaultData = {
+        "rebar": { title: "🏗️ 鋼筋工程", items: [
+            { id: "r1", name: "鋼筋號數", standard: "符合圖說", type: "text" },
+            { id: "r2", name: "鋼筋間距", standard: "設計值 ±10mm", type: "number" }
+        ]},
+        "formwork": { title: "🧱 模板工程", items: [
+            { id: "f1", name: "垂直度", standard: "3m < 6mm", type: "number" }
+        ]}
+    };
+
+    // 嘗試從 localStorage 讀取，如果沒有就用預設值
+    let appData = JSON.parse(localStorage.getItem('qc_config')) || defaultData;
+    let currentEditId = "rebar"; // 目前正在編輯的表單ID
 
     // 初始化
-    document.getElementById('dateInput').valueAsDate = new Date();
-    const defectItems = new Map(); 
-    renderForm();
+    document.getElementById('checkDate').valueAsDate = new Date();
+    refreshSelectors();
+    loadUserForm();
 
-    // 3. 繪製檢查表 (修改重點：把相機加到這裡面)
-    function renderForm() {
-        const container = document.getElementById('checkFormArea');
+    // ==========================================
+    // 頁面切換邏輯
+    // ==========================================
+    function switchPage(pageName, btn) {
+        document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
+        document.getElementById(`page-${pageName}`).classList.add('active');
+        
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        if(btn) btn.classList.add('active');
+
+        if(pageName === 'admin') loadAdminItems();
+        if(pageName === 'check') {
+            refreshSelectors();
+            loadUserForm();
+        }
+    }
+
+    // ==========================================
+    // User Mode: 現場檢查功能
+    // ==========================================
+    function refreshSelectors() {
+        const userSel = document.getElementById('userFormSelector');
+        const adminSel = document.getElementById('adminFormSelector');
+        userSel.innerHTML = '';
+        adminSel.innerHTML = '';
+
+        Object.keys(appData).forEach(key => {
+            const opt = `<option value="${key}">${appData[key].title}</option>`;
+            userSel.innerHTML += opt;
+            adminSel.innerHTML += opt;
+        });
+        
+        // 保持 Admin 選單的狀態
+        adminSel.value = currentEditId;
+    }
+
+    function loadUserForm() {
+        const key = document.getElementById('userFormSelector').value;
+        if(!key) return;
+        
+        const items = appData[key].items;
+        const container = document.getElementById('checklistArea');
         let html = '';
-        formConfig.forEach((item, index) => {
-            html += `
-            <div class="paper-card transition-all duration-300" id="card-${item.id}">
-                <div class="flex justify-between items-start mb-2">
-                    <h3 class="font-bold text-gray-800 text-lg">${index + 1}. ${item.name}</h3>
-                </div>
-                <div class="bg-gray-100 p-2 rounded text-sm text-gray-600 mb-3 border-l-4 border-gray-400">
-                    <span class="font-bold">標準：</span>${item.standard}
-                </div>
-                
-                <div class="space-y-3">
-                    <input type="text" class="input-std" placeholder="輸入實際檢查值...">
-                    
-                    <div class="w-full">
-                        <input type="file" id="cam-${item.id}" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this, '${item.id}')">
-                        <button onclick="document.getElementById('cam-${item.id}').click()" 
-                            class="btn-camera w-full py-2 rounded flex justify-center items-center gap-2 text-sm font-bold">
-                            📷 拍攝現場照片 (點擊拍攝)
-                        </button>
-                        <div class="relative">
-                            <img id="img-${item.id}" class="photo-preview">
-                            <button id="del-img-${item.id}" onclick="clearImage('${item.id}')" class="hidden absolute top-2 right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">✕</button>
-                        </div>
-                    </div>
 
-                    <div class="flex gap-2 pt-2 border-t mt-2">
-                        <button onclick="setResult('${item.id}', 'pass', '${item.name}')" id="btn-pass-${item.id}" class="btn-base flex-1">合格</button>
-                        <button onclick="setResult('${item.id}', 'fail', '${item.name}')" id="btn-fail-${item.id}" class="btn-base flex-1">缺失</button>
-                    </div>
+        items.forEach((item, idx) => {
+            html += `
+            <div class="paper-card" id="card-${idx}">
+                <div class="font-bold text-gray-800 text-lg mb-1">${idx + 1}. ${item.name}</div>
+                <div class="bg-gray-100 p-2 rounded text-sm text-gray-600 mb-2">標準：${item.standard}</div>
+                
+                <input type="text" class="input-std mb-2" placeholder="檢查值...">
+                
+                <div class="w-full mb-2">
+                    <input type="file" id="cam-${idx}" accept="image/*" capture="environment" class="hidden" onchange="previewUserImg(this, ${idx})">
+                    <button onclick="document.getElementById('cam-${idx}').click()" class="w-full py-2 border border-dashed border-gray-400 text-gray-500 rounded font-bold">📷 拍攝照片</button>
+                    <img id="img-${idx}" class="photo-preview">
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="toggleBtn(this, 'pass')" class="btn-base flex-1">合格</button>
+                    <button onclick="toggleBtn(this, 'fail')" class="btn-base flex-1">缺失</button>
                 </div>
             </div>`;
         });
         container.innerHTML = html;
     }
 
-    // 4. 判定邏輯
-    function setResult(id, result, name) {
-        const card = document.getElementById(`card-${id}`);
-        const btnPass = document.getElementById(`btn-pass-${id}`);
-        const btnFail = document.getElementById(`btn-fail-${id}`);
-
-        btnPass.className = "btn-base flex-1";
-        btnFail.className = "btn-base flex-1";
-        card.classList.remove('border-l-pass', 'border-l-fail');
-
-        if (result === 'pass') {
-            btnPass.classList.add('btn-pass-active');
-            card.classList.add('border-l-pass');
-            if (defectItems.has(id)) {
-                defectItems.delete(id);
-                updateDefectSection();
-            }
-        } else {
-            btnFail.classList.add('btn-fail-active');
-            card.classList.add('border-l-fail');
-            defectItems.set(id, name);
-            updateDefectSection();
-        }
-    }
-
-    // 5. 更新缺失說明區 (這裡只留文字描述，照片在上面)
-    function updateDefectSection() {
-        const section = document.getElementById('defectSection');
-        const list = document.getElementById('defectList');
-        
-        if (defectItems.size === 0) {
-            section.classList.add('hidden');
-            return;
-        }
-
-        section.classList.remove('hidden');
-        let html = '';
-
-        defectItems.forEach((name, id) => {
-            html += `
-            <div class="bg-white p-3 rounded border border-red-100 shadow-sm">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="font-bold text-red-700 text-sm">針對：${name}</span>
-                    <span class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full">需改善</span>
-                </div>
-                <textarea class="w-full p-2 border rounded text-sm" rows="2" placeholder="請詳細描述缺失內容及改善建議..."></textarea>
-            </div>`;
-        });
-        list.innerHTML = html;
-        
-        // 自動滑動到缺失區塊提示使用者
-        if(defectItems.size === 1) {
-            section.scrollIntoView({behavior: "smooth"});
-        }
-    }
-
-    // 6. 照片預覽處理
-    function previewImage(input, id) {
-        if (input.files && input.files[0]) {
+    function previewUserImg(input, idx) {
+        if (input.files[0]) {
             const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = document.getElementById(`img-${id}`);
-                const delBtn = document.getElementById(`del-img-${id}`);
-                
+            reader.onload = (e) => {
+                const img = document.getElementById(`img-${idx}`);
                 img.src = e.target.result;
                 img.classList.add('show');
-                delBtn.classList.remove('hidden'); // 顯示刪除按鈕
-                
-                // 改變相機按鈕文字，提示已拍攝
-                const camBtn = input.nextElementSibling;
-                camBtn.innerText = "📷 照片已暫存 (點擊可重拍)";
-                camBtn.classList.add("bg-blue-50", "text-blue-700", "border-blue-200");
-            }
+                input.nextElementSibling.innerText = "📷 照片已暫存";
+                input.nextElementSibling.classList.add('bg-blue-50', 'text-blue-600');
+            };
             reader.readAsDataURL(input.files[0]);
         }
     }
 
-    // 7. 清除照片功能
-    function clearImage(id) {
-        const input = document.getElementById(`cam-${id}`);
-        const img = document.getElementById(`img-${id}`);
-        const delBtn = document.getElementById(`del-img-${id}`);
-        
-        input.value = ""; // 清空 input
-        img.src = "";
-        img.classList.remove('show');
-        delBtn.classList.add('hidden');
-        
-        // 恢復按鈕文字
-        const camBtn = input.nextElementSibling;
-        camBtn.innerText = "📷 拍攝現場照片 (點擊拍攝)";
-        camBtn.classList.remove("bg-blue-50", "text-blue-700", "border-blue-200");
+    function toggleBtn(btn, type) {
+        const parent = btn.parentElement;
+        parent.querySelectorAll('button').forEach(b => b.className = "btn-base flex-1");
+        if(type === 'pass') btn.className = "btn-base flex-1 btn-pass-active";
+        else btn.className = "btn-base flex-1 btn-fail-active";
     }
 
-    // 8. 模擬儲存
-    function saveData() {
-        alert(`檢查完成！\n缺失項目：${defectItems.size} 項\n所有照片與數據將一併上傳。`);
+    function submitData() {
+        Swal.fire({ title: '檢查完成!', text: '資料與照片已模擬上傳成功', icon: 'success' });
+    }
+
+    // ==========================================
+    // Admin Mode: 後台設定功能
+    // ==========================================
+    
+    // 1. 新增表單種類 (例如: 新增「油漆工程」)
+    async function addNewFormType() {
+        const { value: formName } = await Swal.fire({
+            title: '新增檢查表名稱',
+            input: 'text',
+            inputLabel: '例如：油漆工程檢查表',
+            showCancelButton: true
+        });
+
+        if (formName) {
+            const newId = "form_" + Date.now();
+            appData[newId] = { title: formName, items: [] };
+            currentEditId = newId;
+            saveAllConfig(); // 自動儲存
+            refreshSelectors();
+            loadAdminItems();
+            Swal.fire('成功', '已建立新表單，請開始新增項目', 'success');
+        }
+    }
+
+    // 2. 刪除表單
+    function deleteFormType() {
+        const key = document.getElementById('adminFormSelector').value;
+        if(Object.keys(appData).length <= 1) return Swal.fire('錯誤', '至少要保留一張表單', 'error');
+
+        Swal.fire({
+            title: '確定刪除此表單？',
+            text: "刪除後無法復原！",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '是的，刪除'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                delete appData[key];
+                currentEditId = Object.keys(appData)[0]; // 刪除後跳回第一張
+                saveAllConfig();
+                refreshSelectors();
+                loadAdminItems();
+            }
+        });
+    }
+
+    // 3. 載入編輯列表
+    function loadAdminItems() {
+        currentEditId = document.getElementById('adminFormSelector').value;
+        const items = appData[currentEditId].items;
+        const list = document.getElementById('adminItemsList');
+        list.innerHTML = '';
+
+        items.forEach((item, index) => {
+            list.innerHTML += `
+            <div class="border p-3 rounded bg-white relative">
+                <div class="text-xs text-gray-400 mb-1">項目 ${index + 1}</div>
+                <input type="text" class="w-full border-b mb-2 p-1 font-bold" value="${item.name}" onchange="updateItem(${index}, 'name', this.value)" placeholder="檢查項目名稱">
+                <input type="text" class="w-full border-b mb-2 p-1 text-sm text-gray-600" value="${item.standard}" onchange="updateItem(${index}, 'standard', this.value)" placeholder="檢查標準">
+                <button onclick="deleteItem(${index})" class="absolute top-2 right-2 text-red-500 font-bold px-2">✕</button>
+            </div>`;
+        });
+    }
+
+    // 4. 新增細項
+    function addNewItem() {
+        appData[currentEditId].items.push({ 
+            id: Date.now(), 
+            name: "新檢查項目", 
+            standard: "請輸入標準", 
+            type: "text" 
+        });
+        loadAdminItems();
+    }
+
+    // 5. 更新細項內容
+    function updateItem(index, field, val) {
+        appData[currentEditId].items[index][field] = val;
+    }
+
+    // 6. 刪除細項
+    function deleteItem(index) {
+        appData[currentEditId].items.splice(index, 1);
+        loadAdminItems();
+    }
+
+    // 7. 儲存設定 (存到 LocalStorage)
+    function saveAllConfig() {
+        localStorage.setItem('qc_config', JSON.stringify(appData));
+        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
+        Toast.fire({ icon: 'success', title: '設定已儲存' });
+        // 同步更新現場模式
+        refreshSelectors();
     }
 </script>
 
