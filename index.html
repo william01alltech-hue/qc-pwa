@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2563eb">
+    <title>公共工程品質檢查表 PWA</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: "Microsoft JhengHei", sans-serif; background-color: #f3f4f6; padding-bottom: 100px; }
+        .paper-card { background: white; padding: 16px; margin-bottom: 16px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .input-std { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #fafafa; }
+        
+        /* 按鈕樣式 */
+        .btn-base { padding: 8px 0; border: 1px solid #e5e7eb; border-radius: 6px; font-weight: bold; color: #9ca3af; background: white; transition: all 0.2s; }
+        .btn-pass-active { border-color: #10b981; background-color: #10b981; color: white; }
+        .btn-fail-active { border-color: #ef4444; background-color: #ef4444; color: white; }
+        
+        /* 左側狀態條 */
+        .border-l-pass { border-left: 5px solid #10b981; }
+        .border-l-fail { border-left: 5px solid #ef4444; }
+
+        /* 相機預覽區 */
+        .photo-preview { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; border: 2px dashed #ccc; display: none; margin-top: 10px; }
+        .photo-preview.show { display: block; border: 2px solid #2563eb; }
+    </style>
+</head>
+<body class="p-4">
+
+    <header class="mb-5 flex justify-between items-center">
+        <div>
+            <h1 class="text-xl font-bold text-gray-800">工程品質自主檢查</h1>
+            <p class="text-xs text-gray-500">版本：V1.2 (含相機功能)</p>
+        </div>
+        <div id="connectionStatus" class="bg-blue-600 text-white text-xs px-2 py-1 rounded">連線正常</div>
+    </header>
+
+    <div class="paper-card">
+        <h2 class="text-lg font-bold mb-4 text-gray-800 border-b pb-2">基本資料</h2>
+        <div class="grid grid-cols-1 gap-3">
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">工程名稱</label>
+                <input type="text" class="input-std" value="大林廠-第一重油工場改善案">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">檢查日期</label>
+                    <input type="date" id="dateInput" class="input-std">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">檢查人員</label>
+                    <input type="text" class="input-std" value="林婉馨">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="checkFormArea"></div>
+
+    <div id="defectSection" class="hidden">
+        <div class="paper-card border border-red-200 bg-red-50">
+            <h2 class="text-lg font-bold text-red-600 mb-2 flex items-center">
+                ⚠ 缺失改善追蹤表
+            </h2>
+            <p class="text-sm text-gray-600 mb-4">請針對不合格項目拍照存證：</p>
+            <div id="defectList" class="space-y-6">
+                </div>
+        </div>
+    </div>
+
+    <div class="fixed bottom-0 left-0 w-full bg-white border-t p-3 shadow-lg z-50">
+        <button onclick="saveData()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow active:bg-blue-700">
+            提交檢查紀錄
+        </button>
+    </div>
+
+<script>
+    // 1. PWA Service Worker 註冊
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js');
+        });
+    }
+
+    // 2. 檢查表設定
+    const formConfig = [
+        { id: "c01", name: "設計圖說、規範標準", standard: "符合最新核定版圖說", type: "text" },
+        { id: "c02", name: "鋼筋號數及根數", standard: "與設計圖相符 (定量)", type: "number" },
+        { id: "c03", name: "鋼筋間距", standard: "設計值 ±10mm", type: "number" },
+        { id: "c04", name: "保護層厚度", standard: "依規範 (例: 7.5cm)", type: "number" },
+        { id: "c05", name: "工地清潔", standard: "無雜物堆積", type: "bool" }
+    ];
+
+    // 初始化
+    document.getElementById('dateInput').valueAsDate = new Date();
+    const defectItems = new Map(); 
+    renderForm();
+
+    // 3. 繪製檢查表
+    function renderForm() {
+        const container = document.getElementById('checkFormArea');
+        let html = '';
+        formConfig.forEach((item, index) => {
+            html += `
+            <div class="paper-card transition-all duration-300" id="card-${item.id}">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="font-bold text-gray-800 text-lg">${index + 1}. ${item.name}</h3>
+                </div>
+                <div class="bg-gray-100 p-2 rounded text-sm text-gray-600 mb-3 border-l-4 border-gray-400">
+                    <span class="font-bold">標準：</span>${item.standard}
+                </div>
+                <div class="space-y-3">
+                    <input type="text" class="input-std" placeholder="輸入實際檢查值...">
+                    <div class="flex gap-2">
+                        <button onclick="setResult('${item.id}', 'pass', '${item.name}')" id="btn-pass-${item.id}" class="btn-base flex-1">合格</button>
+                        <button onclick="setResult('${item.id}', 'fail', '${item.name}')" id="btn-fail-${item.id}" class="btn-base flex-1">缺失</button>
+                    </div>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    // 4. 判定邏輯
+    function setResult(id, result, name) {
+        const card = document.getElementById(`card-${id}`);
+        const btnPass = document.getElementById(`btn-pass-${id}`);
+        const btnFail = document.getElementById(`btn-fail-${id}`);
+
+        btnPass.className = "btn-base flex-1";
+        btnFail.className = "btn-base flex-1";
+        card.classList.remove('border-l-pass', 'border-l-fail');
+
+        if (result === 'pass') {
+            btnPass.classList.add('btn-pass-active');
+            card.classList.add('border-l-pass');
+            if (defectItems.has(id)) {
+                defectItems.delete(id);
+                updateDefectSection();
+            }
+        } else {
+            btnFail.classList.add('btn-fail-active');
+            card.classList.add('border-l-fail');
+            defectItems.set(id, name);
+            updateDefectSection();
+        }
+    }
+
+    // 5. 更新缺失區塊 (含相機功能)
+    function updateDefectSection() {
+        const section = document.getElementById('defectSection');
+        const list = document.getElementById('defectList');
+        
+        if (defectItems.size === 0) {
+            section.classList.add('hidden');
+            return;
+        }
+
+        section.classList.remove('hidden');
+        let html = '';
+
+        defectItems.forEach((name, id) => {
+            html += `
+            <div class="bg-white p-4 rounded border border-red-100 shadow-sm">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold text-red-700 text-sm">項目：${name}</span>
+                    <span class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full">未改善</span>
+                </div>
+                <textarea class="w-full p-2 border rounded text-sm mb-3" rows="2" placeholder="請描述缺失細節..."></textarea>
+                
+                <div class="border-t pt-3">
+                    <input type="file" id="cam-${id}" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this, '${id}')">
+                    
+                    <button onclick="document.getElementById('cam-${id}').click()" 
+                        class="w-full bg-gray-800 text-white py-2 rounded flex justify-center items-center gap-2 active:bg-black">
+                        📷 啟動相機拍攝
+                    </button>
+
+                    <img id="img-${id}" class="photo-preview mt-2">
+                    <p id="txt-${id}" class="text-xs text-center text-gray-400 mt-1 hidden">照片已暫存</p>
+                </div>
+            </div>`;
+        });
+        list.innerHTML = html;
+        
+        // 捲動到缺失區
+        if(defectItems.size === 1) section.scrollIntoView({behavior: "smooth"});
+    }
+
+    // 6. 照片預覽處理 (使用 FileReader)
+    function previewImage(input, id) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById(`img-${id}`);
+                const txt = document.getElementById(`txt-${id}`);
+                img.src = e.target.result;
+                img.classList.add('show');
+                txt.classList.remove('hidden');
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    // 7. 模擬儲存
+    function saveData() {
+        alert(`資料已送出！\n缺失數量：${defectItems.size}\n照片將一併上傳。`);
+    }
+</script>
+
+</body>
+</html>
