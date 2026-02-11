@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>雲端工程檢查 PWA (10MB版)</title>
+    <title>雲端工程檢查 PWA (最終版)</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon.png">
@@ -37,7 +37,7 @@
             <h1 class="text-xl font-bold text-gray-800">工程品質自主檢查</h1>
             <p class="text-xs text-blue-600 font-bold flex items-center gap-1">
                 <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span></span>
-                雲端連線中 (10MB版)
+                雲端連線正常 (正式版)
             </p>
         </div>
         <button onclick="fetchConfig()" class="text-xs bg-white border border-gray-300 px-3 py-2 rounded shadow-sm hover:bg-gray-50">🔄 更新表單</button>
@@ -77,9 +77,9 @@
     }
 
     // ============================================================
-    // ★★★ 您的專屬 Google Apps Script 網址 (已填入) ★★★
+    // ★★★ 您的專屬 Google Apps Script 網址 (已自動填入) ★★★
     // ============================================================
-    const API_URL = "https://script.google.com/macros/s/AKfycbzE-mAK3vhaI91zBS-Bmx7QKlaCo5aSkLk5ZSgozKWldRHtkkqAR4npw8tRSZRT8_nO9w/exec"; 
+    const API_URL = "https://script.google.com/macros/s/AKfycbwBezFD3ZtItfCuH4jD9NOZrLOeB_NexkNLMV9h-ZaMe7Vq1der-IYNMAL-nIG_d1H0Fw/exec"; 
     
     let appConfig = {}; 
     let currentResults = {}; 
@@ -104,13 +104,13 @@
                 updateSelector();
                 loader.classList.add('hidden');
                 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-                Toast.fire({ icon: 'success', title: '雲端表單已同步' });
+                Toast.fire({ icon: 'success', title: '表單已更新' });
             })
             .catch(err => {
                 console.error(err);
                 select.innerHTML = '<option>連線失敗</option>';
                 loader.classList.add('hidden');
-                Swal.fire('連線錯誤', '無法讀取 Google Sheet，請檢查網路', 'error');
+                Swal.fire('連線錯誤', '無法讀取 Google Sheet，請檢查網址', 'error');
             });
     }
 
@@ -140,7 +140,6 @@
         currentResults = {}; 
 
         items.forEach((item, idx) => {
-            // 初始化資料結構
             currentResults[item.id] = { 
                 name: item.name,
                 result: '', 
@@ -184,12 +183,11 @@
         container.innerHTML = html;
     }
 
-    // 處理照片 (轉 Base64 供預覽與上傳)
+    // 處理照片 (10MB 限制)
     function handleImage(input, id) {
         if (input.files && input.files[0]) {
             const file = input.files[0];
             
-            // ★★★ 修改：限制放寬到 10MB ★★★
             if(file.size > 10 * 1024 * 1024) {
                 Swal.fire('照片太大', '請使用 10MB 以下的照片以確保上傳成功', 'warning');
                 return;
@@ -199,17 +197,14 @@
             
             reader.onload = function(e) {
                 const base64Data = e.target.result;
-                
-                // 1. 顯示預覽
                 const img = document.getElementById(`img-${id}`);
                 img.src = base64Data;
                 img.classList.add('show');
                 document.getElementById(`del-${id}`).classList.remove('hidden');
 
-                // 2. 存入真實照片資料
+                // 存入真實照片資料
                 currentResults[id].photo = base64Data; 
                 
-                // 改變按鈕樣式
                 input.nextElementSibling.innerText = "✅ 照片已暫存";
                 input.nextElementSibling.classList.add("bg-blue-50", "text-blue-600", "border-blue-200");
             }
@@ -224,7 +219,7 @@
         document.getElementById(`del-${id}`).classList.add('hidden');
         currentResults[id].photo = "";
         
-        input.nextElementSibling.innerText = "📷 拍攝照片 (上限10MB)";
+        input.nextElementSibling.innerText = "📷 拍攝照片";
         input.nextElementSibling.classList.remove("bg-blue-50", "text-blue-600", "border-blue-200");
     }
 
@@ -244,7 +239,6 @@
         const formTitle = appConfig[formKey].title;
         const date = document.getElementById('checkDate').value;
         
-        // 準備要傳送的資料包
         const payload = {
             date: date,
             inspector: inspector,
@@ -254,14 +248,14 @@
 
         Swal.fire({ 
             title: '上傳中...', 
-            text: '照片較大請耐心等候 (約10-20秒)', 
+            text: '照片較大請耐心等候 (約10-20秒)...', 
             allowOutsideClick: false, 
             didOpen: () => Swal.showLoading() 
         });
 
         fetch(API_URL, {
             method: 'POST',
-            mode: 'no-cors', // 跨域模式
+            mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         }).then(() => {
