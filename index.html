@@ -11,12 +11,12 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; background-color: #f3f4f6; padding-bottom: 100px; }
+        body { font-family: "Microsoft JhengHei", sans-serif; background-color: #f3f4f6; padding-bottom: 120px; }
         .paper-card { background: white; padding: 16px; margin-bottom: 16px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .input-std { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #fafafa; }
         
         /* 按鈕樣式 */
-        .btn-base { padding: 8px 0; border: 1px solid #e5e7eb; border-radius: 6px; font-weight: bold; color: #9ca3af; background: white; transition: all 0.2s; }
+        .btn-base { padding: 10px 0; border: 1px solid #e5e7eb; border-radius: 6px; font-weight: bold; color: #6b7280; background: white; transition: all 0.2s; }
         .btn-pass-active { border-color: #10b981; background-color: #10b981; color: white; }
         .btn-fail-active { border-color: #ef4444; background-color: #ef4444; color: white; }
         
@@ -24,9 +24,13 @@
         .border-l-pass { border-left: 5px solid #10b981; }
         .border-l-fail { border-left: 5px solid #ef4444; }
 
-        /* 相機預覽區 */
-        .photo-preview { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; border: 2px dashed #ccc; display: none; margin-top: 10px; }
+        /* 相機預覽圖樣式 */
+        .photo-preview { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; border: 2px dashed #ccc; display: none; margin-top: 8px; }
         .photo-preview.show { display: block; border: 2px solid #2563eb; }
+        
+        /* 拍照按鈕 */
+        .btn-camera { background-color: #f3f4f6; color: #374151; border: 1px dashed #9ca3af; }
+        .btn-camera:active { background-color: #e5e7eb; }
     </style>
 </head>
 <body class="p-4">
@@ -34,7 +38,7 @@
     <header class="mb-5 flex justify-between items-center">
         <div>
             <h1 class="text-xl font-bold text-gray-800">工程品質自主檢查</h1>
-            <p class="text-xs text-gray-500">版本：V1.2 (含相機功能)</p>
+            <p class="text-xs text-gray-500">V1.3 (全項目拍照版)</p>
         </div>
         <div id="connectionStatus" class="bg-blue-600 text-white text-xs px-2 py-1 rounded">連線正常</div>
     </header>
@@ -64,10 +68,10 @@
     <div id="defectSection" class="hidden">
         <div class="paper-card border border-red-200 bg-red-50">
             <h2 class="text-lg font-bold text-red-600 mb-2 flex items-center">
-                ⚠ 缺失改善追蹤表
+                ⚠ 缺失改善追蹤
             </h2>
-            <p class="text-sm text-gray-600 mb-4">請針對不合格項目拍照存證：</p>
-            <div id="defectList" class="space-y-6">
+            <p class="text-sm text-gray-600 mb-4">針對不合格項目，請填寫改善對策 (照片請在上方拍攝)：</p>
+            <div id="defectList" class="space-y-4">
                 </div>
         </div>
     </div>
@@ -100,7 +104,7 @@
     const defectItems = new Map(); 
     renderForm();
 
-    // 3. 繪製檢查表
+    // 3. 繪製檢查表 (修改重點：把相機加到這裡面)
     function renderForm() {
         const container = document.getElementById('checkFormArea');
         let html = '';
@@ -113,9 +117,23 @@
                 <div class="bg-gray-100 p-2 rounded text-sm text-gray-600 mb-3 border-l-4 border-gray-400">
                     <span class="font-bold">標準：</span>${item.standard}
                 </div>
+                
                 <div class="space-y-3">
                     <input type="text" class="input-std" placeholder="輸入實際檢查值...">
-                    <div class="flex gap-2">
+                    
+                    <div class="w-full">
+                        <input type="file" id="cam-${item.id}" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this, '${item.id}')">
+                        <button onclick="document.getElementById('cam-${item.id}').click()" 
+                            class="btn-camera w-full py-2 rounded flex justify-center items-center gap-2 text-sm font-bold">
+                            📷 拍攝現場照片 (點擊拍攝)
+                        </button>
+                        <div class="relative">
+                            <img id="img-${item.id}" class="photo-preview">
+                            <button id="del-img-${item.id}" onclick="clearImage('${item.id}')" class="hidden absolute top-2 right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">✕</button>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 pt-2 border-t mt-2">
                         <button onclick="setResult('${item.id}', 'pass', '${item.name}')" id="btn-pass-${item.id}" class="btn-base flex-1">合格</button>
                         <button onclick="setResult('${item.id}', 'fail', '${item.name}')" id="btn-fail-${item.id}" class="btn-base flex-1">缺失</button>
                     </div>
@@ -150,7 +168,7 @@
         }
     }
 
-    // 5. 更新缺失區塊 (含相機功能)
+    // 5. 更新缺失說明區 (這裡只留文字描述，照片在上面)
     function updateDefectSection() {
         const section = document.getElementById('defectSection');
         const list = document.getElementById('defectList');
@@ -165,50 +183,63 @@
 
         defectItems.forEach((name, id) => {
             html += `
-            <div class="bg-white p-4 rounded border border-red-100 shadow-sm">
+            <div class="bg-white p-3 rounded border border-red-100 shadow-sm">
                 <div class="flex justify-between items-center mb-2">
-                    <span class="font-bold text-red-700 text-sm">項目：${name}</span>
-                    <span class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full">未改善</span>
+                    <span class="font-bold text-red-700 text-sm">針對：${name}</span>
+                    <span class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full">需改善</span>
                 </div>
-                <textarea class="w-full p-2 border rounded text-sm mb-3" rows="2" placeholder="請描述缺失細節..."></textarea>
-                
-                <div class="border-t pt-3">
-                    <input type="file" id="cam-${id}" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this, '${id}')">
-                    
-                    <button onclick="document.getElementById('cam-${id}').click()" 
-                        class="w-full bg-gray-800 text-white py-2 rounded flex justify-center items-center gap-2 active:bg-black">
-                        📷 啟動相機拍攝
-                    </button>
-
-                    <img id="img-${id}" class="photo-preview mt-2">
-                    <p id="txt-${id}" class="text-xs text-center text-gray-400 mt-1 hidden">照片已暫存</p>
-                </div>
+                <textarea class="w-full p-2 border rounded text-sm" rows="2" placeholder="請詳細描述缺失內容及改善建議..."></textarea>
             </div>`;
         });
         list.innerHTML = html;
         
-        // 捲動到缺失區
-        if(defectItems.size === 1) section.scrollIntoView({behavior: "smooth"});
+        // 自動滑動到缺失區塊提示使用者
+        if(defectItems.size === 1) {
+            section.scrollIntoView({behavior: "smooth"});
+        }
     }
 
-    // 6. 照片預覽處理 (使用 FileReader)
+    // 6. 照片預覽處理
     function previewImage(input, id) {
         if (input.files && input.files[0]) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 const img = document.getElementById(`img-${id}`);
-                const txt = document.getElementById(`txt-${id}`);
+                const delBtn = document.getElementById(`del-img-${id}`);
+                
                 img.src = e.target.result;
                 img.classList.add('show');
-                txt.classList.remove('hidden');
+                delBtn.classList.remove('hidden'); // 顯示刪除按鈕
+                
+                // 改變相機按鈕文字，提示已拍攝
+                const camBtn = input.nextElementSibling;
+                camBtn.innerText = "📷 照片已暫存 (點擊可重拍)";
+                camBtn.classList.add("bg-blue-50", "text-blue-700", "border-blue-200");
             }
             reader.readAsDataURL(input.files[0]);
         }
     }
 
-    // 7. 模擬儲存
+    // 7. 清除照片功能
+    function clearImage(id) {
+        const input = document.getElementById(`cam-${id}`);
+        const img = document.getElementById(`img-${id}`);
+        const delBtn = document.getElementById(`del-img-${id}`);
+        
+        input.value = ""; // 清空 input
+        img.src = "";
+        img.classList.remove('show');
+        delBtn.classList.add('hidden');
+        
+        // 恢復按鈕文字
+        const camBtn = input.nextElementSibling;
+        camBtn.innerText = "📷 拍攝現場照片 (點擊拍攝)";
+        camBtn.classList.remove("bg-blue-50", "text-blue-700", "border-blue-200");
+    }
+
+    // 8. 模擬儲存
     function saveData() {
-        alert(`資料已送出！\n缺失數量：${defectItems.size}\n照片將一併上傳。`);
+        alert(`檢查完成！\n缺失項目：${defectItems.size} 項\n所有照片與數據將一併上傳。`);
     }
 </script>
 
